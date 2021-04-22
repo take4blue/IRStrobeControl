@@ -6,21 +6,14 @@
 #include "esp_log.h"
 #include "driver/rmt.h"
 
-static const char *TAG = "example";
+static const char *TAG = "IR Flash";
 
 static constexpr rmt_channel_t RMT_TX_CHANNEL = RMT_CHANNEL_0;
 static constexpr gpio_num_t CONFIG_EXAMPLE_RMT_TX_GPIO = GPIO_NUM_12;
 
-/*
- * Prepare a raw table with a message in the Morse code
- *
- * The message is "ESP" : . ... .--.
- *
- * The table structure represents the RMT item structure:
- * {duration, level, duration, level}
- *
- */
-static const rmt_item32_t morse_esp[] = {
+static constexpr size_t PatternBufferSize = 20;
+static constexpr size_t ValueHeaderPosition = 15;
+static rmt_item32_t patternBuffer[PatternBufferSize] = {
     // 先頭データ11ビット分
     {{{ 60, 1, 40, 0 }}},
     {{{ 60, 1, 40, 0 }}},
@@ -38,7 +31,7 @@ static const rmt_item32_t morse_esp[] = {
     {{{ 60, 1, 40, 0 }}},
     {{{ 60, 0, 40, 0 }}},
     {{{ 60, 0, 40, 0 }}},
-    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
     {{{ 60, 1, 40, 0 }}},
     {{{ 60, 1, 40, 0 }}},
     {{{ 60, 1, 40, 0 }}},
@@ -58,6 +51,9 @@ static void rmt_tx_init(void)
     ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
 }
 
+// 発光量を1～31で表す。
+// 計測した結果では、31がフル発光。3が1/128発光だった。
+
 extern "C" void app_main()
 {
     ESP_LOGI(TAG, "Configuring transmitter");
@@ -70,12 +66,17 @@ extern "C" void app_main()
             if (iscntrl(ch)) {
                 if (!buffer.empty()) {
                     char *pos;
-                    auto val = strtol(buffer.c_str(), &pos, 40);
-                    if (val >= 0 && val < 60000) {
+                    auto val = strtol(buffer.c_str(), &pos, 10);
+                    if (val >= 0 && val < 32) {
                         printf("\nFlash %ld\n", val);
-                        ESP_ERROR_CHECK(rmt_write_items(RMT_TX_CHANNEL, morse_esp, sizeof(morse_esp) / sizeof(morse_esp[0]), true));
+                        uint8_t work = val;
+                        for (size_t i = ValueHeaderPosition; i < PatternBufferSize; i++) {
+                            patternBuffer[i].level0 = val & 0x1;
+                            val = val >> 1;
+                        }
+                        ESP_ERROR_CHECK(rmt_write_items(RMT_TX_CHANNEL, patternBuffer, PatternBufferSize, true));
                         vTaskDelay(50 / portTICK_PERIOD_MS);
-                        rmt_write_items(RMT_TX_CHANNEL, morse_esp, 1, true);
+                        rmt_write_items(RMT_TX_CHANNEL, patternBuffer, 1, true);
                     }
                     else {
                         printf("\nIllegal Val %ld\n", val);
