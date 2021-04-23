@@ -13,23 +13,48 @@ static constexpr gpio_num_t CONFIG_EXAMPLE_RMT_TX_GPIO = GPIO_NUM_12;
 
 static constexpr size_t PatternBufferSize = 20;
 static constexpr size_t ValueHeaderPosition = 15;
-static rmt_item32_t patternBuffer[PatternBufferSize] = {
-    // 先頭データ11ビット分
-    {{{ 60, 1, 40, 0 }}},
-    {{{ 60, 1, 40, 0 }}},
-    {{{ 60, 1, 40, 0 }}},
-    {{{ 60, 1, 40, 0 }}},
+// プリ発光データ
+static rmt_item32_t patternBuffer1[PatternBufferSize] = {
     {{{ 60, 1, 40, 0 }}},
     {{{ 60, 1, 40, 0 }}},
     {{{ 60, 0, 40, 0 }}},
     {{{ 60, 0, 40, 0 }}},
     {{{ 60, 0, 40, 0 }}},
     {{{ 60, 0, 40, 0 }}},
-    // 光量データ9ビット分
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
+
+    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}}
+};
+
+// 本発光データ
+static rmt_item32_t patternBuffer2[PatternBufferSize] = {
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
     {{{ 60, 0, 40, 0 }}},
     {{{ 60, 1, 40, 0 }}},
     {{{ 60, 1, 40, 0 }}},
     {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
+
+    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
+    {{{ 60, 0, 40, 0 }}},
+    {{{ 60, 1, 40, 0 }}},
     {{{ 60, 0, 40, 0 }}},
     {{{ 60, 1, 40, 0 }}},
     {{{ 60, 1, 40, 0 }}},
@@ -67,16 +92,27 @@ extern "C" void app_main()
                 if (!buffer.empty()) {
                     char *pos;
                     auto val = strtol(buffer.c_str(), &pos, 10);
-                    if (val >= 0 && val < 100) {
+                    if (val >= 0 && val < 31) {
                         printf("\nFlash %ld\n", val);
-                        uint8_t work = 2;
+                        // プリ発光データは入力した値
+                        uint8_t work = val;
                         for (size_t i = ValueHeaderPosition; i < PatternBufferSize; i++) {
-                            patternBuffer[i].level0 = val & 0x1;
+                            patternBuffer1[i].level0 = work & 0x1;
                             work = work >> 1;
                         }
-                        ESP_ERROR_CHECK(rmt_write_items(RMT_TX_CHANNEL, patternBuffer, PatternBufferSize, true));
-                        vTaskDelay(val / portTICK_PERIOD_MS);
-                        rmt_write_items(RMT_TX_CHANNEL, patternBuffer, 1, true);
+                        // 本発光データはとりあえず固定
+                        work = 23;
+                        for (size_t i = ValueHeaderPosition; i < PatternBufferSize; i++) {
+                            patternBuffer2[i].level0 = work & 0x1;
+                            work = work >> 1;
+                        }
+                        ESP_ERROR_CHECK(rmt_write_items(RMT_TX_CHANNEL, patternBuffer1, PatternBufferSize, true));
+                        vTaskDelay(12 / portTICK_PERIOD_MS);
+                        rmt_write_items(RMT_TX_CHANNEL, patternBuffer1, 1, true);
+                        vTaskDelay(40 / portTICK_PERIOD_MS);
+                        ESP_ERROR_CHECK(rmt_write_items(RMT_TX_CHANNEL, patternBuffer2, PatternBufferSize, true));
+                        vTaskDelay(12 / portTICK_PERIOD_MS);
+                        rmt_write_items(RMT_TX_CHANNEL, patternBuffer1, 1, true);
                     }
                     else {
                         printf("\nIllegal Val %ld\n", val);
