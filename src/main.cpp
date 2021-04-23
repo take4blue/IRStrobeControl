@@ -67,15 +67,15 @@ extern "C" void app_main()
                 if (!buffer.empty()) {
                     char *pos;
                     auto val = strtol(buffer.c_str(), &pos, 10);
-                    if (val >= 0 && val < 32) {
+                    if (val >= 0 && val < 100) {
                         printf("\nFlash %ld\n", val);
-                        uint8_t work = val;
+                        uint8_t work = 2;
                         for (size_t i = ValueHeaderPosition; i < PatternBufferSize; i++) {
                             patternBuffer[i].level0 = val & 0x1;
-                            val = val >> 1;
+                            work = work >> 1;
                         }
                         ESP_ERROR_CHECK(rmt_write_items(RMT_TX_CHANNEL, patternBuffer, PatternBufferSize, true));
-                        vTaskDelay(50 / portTICK_PERIOD_MS);
+                        vTaskDelay(val / portTICK_PERIOD_MS);
                         rmt_write_items(RMT_TX_CHANNEL, patternBuffer, 1, true);
                     }
                     else {
